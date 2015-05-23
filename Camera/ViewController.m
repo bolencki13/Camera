@@ -7,7 +7,7 @@
 //
 
 #import "ViewController.h"
-
+#import "Camera.h"
 @interface ViewController ()
 
 @end
@@ -16,7 +16,16 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    // Do any additional setup after loading the view, typically from a nib.
+    UIButton *btnCamera = [UIButton buttonWithType:UIButtonTypeCustom];
+    btnCamera.frame = CGRectMake(50, 50, 50, 50);
+    [btnCamera addTarget:self action:@selector(openCamera) forControlEvents:UIControlEventTouchUpInside];
+    [btnCamera setTitle:@"Camera" forState:UIControlStateNormal];
+    [btnCamera setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [self.view addSubview:btnCamera];
+
+}
+- (void)openCamera {
+    [[Camera sharedInstance] presentCameraWithFrame:CGRectMake(0, 100, [UIScreen mainScreen].bounds.size.width,[UIScreen mainScreen].bounds.size.width)];
 }
 
 - (void)didReceiveMemoryWarning {
