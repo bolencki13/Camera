@@ -2,7 +2,7 @@
 
 ######To impliment add the files into your project.
 
-To invoke the switcher:
+To invoke the camera:
     
     [[Camera sharedInstance] presentCameraWithFrame:(CGRect)];
 
