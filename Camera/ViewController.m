@@ -21,6 +21,7 @@
     [btnCamera addTarget:self action:@selector(openCamera) forControlEvents:UIControlEventTouchUpInside];
     [btnCamera setTitle:@"Camera" forState:UIControlStateNormal];
     [btnCamera setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [btnCamera sizeToFit];
     [self.view addSubview:btnCamera];
 
 }

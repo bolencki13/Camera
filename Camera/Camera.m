@@ -48,20 +48,12 @@
     cameraHousing.layer.borderWidth = 1.0;
     cameraHousing.layer.cornerRadius = 10;
     cameraHousing.layer.masksToBounds = YES;
-    cameraHousing.backgroundColor = [UIColor lightGrayColor];
-    [background addSubview:cameraHousing];
-
-    btnClose = [UIButton buttonWithType:UIButtonTypeCustom];
-    [btnClose addTarget:self action:@selector(dismissCamera) forControlEvents:UIControlEventTouchUpInside];
-    [btnClose setTitle:@"Close" forState:UIControlStateNormal];
-    [btnClose setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
-    btnClose.frame = CGRectMake(background.bounds.size.width-60, 10, 35, 35);
-    [btnClose sizeToFit];
-    [background addSubview:btnClose];
+    cameraHousing.backgroundColor = [UIColor clearColor];
+    [overlay addSubview:cameraHousing];
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        AVCaptureDevice *inputDevice = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
-        AVCaptureDeviceInput *captureInput = [AVCaptureDeviceInput deviceInputWithDevice:inputDevice error:nil];
+        inputDevice = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+        captureInput = [AVCaptureDeviceInput deviceInputWithDevice:inputDevice error:nil];
         if (!captureInput) {
             [[[UIAlertView alloc] initWithTitle:@"Error" message:@"An error loading the camera has occured." delegate:self cancelButtonTitle:@"OK" otherButtonTitles:nil] show];
                         return;
@@ -71,7 +63,7 @@
         NSNumber* value = [NSNumber numberWithUnsignedInt:kCVPixelFormatType_32BGRA];
         NSDictionary* videoSettings = [NSDictionary dictionaryWithObject:value forKey:key];
         [captureOutput setVideoSettings:videoSettings];
-        AVCaptureSession *captureSession = [[AVCaptureSession alloc] init];
+        captureSession = [[AVCaptureSession alloc] init];
         NSString* preset = 0;
         if (!preset) {
             preset = AVCaptureSessionPresetMedium;
@@ -110,6 +102,18 @@
         btnTakePhoto.backgroundColor = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
         [cameraHousing addSubview:btnTakePhoto];
         
+        UILongPressGestureRecognizer *lpgRecord = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(recordVideo:)];
+        lpgRecord.minimumPressDuration = 1.0;
+        [btnTakePhoto addGestureRecognizer:lpgRecord];
+        
+        UIButton *btnToggleCamera = [UIButton buttonWithType:UIButtonTypeCustom];
+        [btnToggleCamera addTarget:self action:@selector(toggleCamera) forControlEvents:UIControlEventTouchUpInside];
+        [btnToggleCamera setTitle:@"Flip" forState:UIControlStateNormal];
+        [btnToggleCamera setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
+        btnToggleCamera.frame = CGRectMake(10,10,25,25);
+        [btnToggleCamera sizeToFit];
+        btnToggleCamera.backgroundColor = [UIColor clearColor];
+        [cameraHousing addSubview:btnToggleCamera];
     });
     
 }
@@ -126,19 +130,58 @@
     self.onScreen = YES;
     [UIView animateWithDuration:ANIMATION_DURATION animations:^{
         [cameraHousing setFrame:frame];
+    } completion:^(BOOL finished) {
+        [livePreviewLayer setFrame:CGRectMake(0, 0, frame.size.width, frame.size.height)];
     }];
 }
 - (void)dismissCamera {
     self.onScreen = NO;
     [UIView animateWithDuration:ANIMATION_DURATION animations:^{
-        [imgView removeFromSuperview];
+        [imgHousing removeFromSuperview];
         [cameraHousing setFrame:CGRectMake(inputPoint.x, inputPoint.y, 1, 1)];
     } completion:^(BOOL finished) {
         overlay.hidden = YES;
     }];
 }
 
-#pragma mark - Photo Handling
+#pragma mark - Camera Handling
+- (void)toggleCamera {
+    NSArray * inputs = captureSession.inputs;
+    for ( AVCaptureDeviceInput *INPUT in inputs ) {
+        AVCaptureDevice *Device = INPUT.device ;
+        if ([Device hasMediaType : AVMediaTypeVideo] ) {
+            AVCaptureDevicePosition position = Device.position; AVCaptureDevice *newCamera = nil;
+            AVCaptureDeviceInput *newInput = nil;
+            
+            if (position == AVCaptureDevicePositionFront) {
+                newCamera = [self cameraWithPosition:AVCaptureDevicePositionBack];
+            } else {
+                newCamera = [self cameraWithPosition:AVCaptureDevicePositionFront];
+            }
+            newInput = [AVCaptureDeviceInput deviceInputWithDevice:newCamera error:nil];
+            
+            //beginConfiguration ensures that pending changes are not applied immediately
+            [captureSession beginConfiguration];
+            
+            [captureSession removeInput : INPUT];
+            [captureSession addInput : newInput];
+            
+            //Changes take effect once the outermost commitConfiguration is invoked.
+            [captureSession commitConfiguration];
+            break;
+        }
+    }
+
+}
+- ( AVCaptureDevice * ) cameraWithPosition : ( AVCaptureDevicePosition ) position {
+    NSArray * Devices = [ AVCaptureDevice devicesWithMediaType : AVMediaTypeVideo ] ;
+    for ( AVCaptureDevice * Device in Devices )
+        if (Device.position == position )
+            return Device ;
+    return nil ;
+}
+
+#pragma mark - UIButton Photo Handling
 - (void)takePhoto {
     AVCaptureConnection *videoConnection = nil;
     for (AVCaptureConnection *connection in stillImageOutput.connections) {
@@ -160,14 +203,59 @@
         [self showImage:imgTaken withFrame:imgFrame];
     }];
 }
-- (void)showImage:(UIImage*)image withFrame:(CGRect)frame {
-    imgView =[[UIImageView alloc] initWithFrame:frame];
-    imgView.image=image;
-    imgView.frame = cameraHousing.frame;
-    imgView.contentMode = UIViewContentModeScaleToFill;
-    [background addSubview:imgView];
+- (void)recordVideo:(id)sender {
+    UILongPressGestureRecognizer *recognizer = sender;
+    if (recognizer.state == UIGestureRecognizerStateBegan) {
+        //Create temporary URL to record to
+        NSString *outputPath = [[NSString alloc] initWithFormat:@"%@%@", NSTemporaryDirectory(), @"snapback.mov"];
+        NSURL *outputURL = [[NSURL alloc] initFileURLWithPath:outputPath];
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        if ([fileManager fileExistsAtPath:outputPath]) {
+            NSError *error;
+            if ([fileManager removeItemAtPath:outputPath error:&error] == NO) {
+                //Error - handle if requried
+            }
+        }
+        //Start recording
+        [MovieFileOutput startRecordingToOutputFileURL:outputURL recordingDelegate:self];
+    } else if (recognizer.state == UIGestureRecognizerStateEnded) {
+        [MovieFileOutput stopRecording];
+    }
     
-    [background bringSubviewToFront:btnClose];
+    
+    if (recognizer.state == UIGestureRecognizerStateBegan) {
+        NSLog(@"Recording started.");
+    } else if (recognizer.state == UIGestureRecognizerStateChanged) {
+        NSLog(@"Recording.");
+    } else if (recognizer.state == UIGestureRecognizerStateEnded) {
+        NSLog(@"Recording ended.");
+    }
+}
+
+#pragma mark - Image & Video Handling
+- (void)showImage:(UIImage*)image withFrame:(CGRect)frame {
+    imgHousing = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleExtraLight]];
+    imgHousing.frame = frame;
+    imgHousing.layer.cornerRadius = cameraHousing.layer.cornerRadius;
+    imgHousing.layer.masksToBounds = YES;
+    [overlay addSubview:imgHousing];
+    
+    imgView =[[UIImageView alloc] initWithFrame:CGRectMake(0, 0, frame.size.height, frame.size.height)];
+    imgView.image=image;
+    imgView.contentMode = UIViewContentModeScaleAspectFit;
+    imgView.userInteractionEnabled = YES;
+    [imgHousing addSubview:imgView];
+    
+    btnClose = [UIButton buttonWithType:UIButtonTypeCustom];
+    [btnClose addTarget:self action:@selector(retakePhoto) forControlEvents:UIControlEventTouchUpInside];
+    [btnClose setTitle:@"X" forState:UIControlStateNormal];
+    [btnClose setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
+    btnClose.frame = CGRectMake(imgView.bounds.size.width-40, 10, 35, 35);
+    [btnClose sizeToFit];
+    [imgView addSubview:btnClose];
+}
+- (void)retakePhoto {
+    [imgHousing removeFromSuperview];
 }
 - (UIImage*)getImageTaken {
     return imgView.image;
@@ -176,5 +264,19 @@
 #pragma mark - Alert Delegate
 - (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex {
     [self dismissCamera];
+}
+
+#pragma mark - Movie Delegate
+- (void)captureOutput:(AVCaptureFileOutput *)captureOutput didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL fromConnections:(NSArray *)connections error:(NSError *)error {
+    
+    MPMoviePlayerViewController *mp = [[MPMoviePlayerViewController alloc] initWithContentURL:outputFileURL];
+    
+    mp.moviePlayer.scalingMode = MPMovieScalingModeAspectFill;
+    
+    UIViewController *vc = [[UIViewController alloc] init];
+    vc.view.backgroundColor = [UIColor clearColor];
+    [overlay setRootViewController:vc];
+    
+    [vc presentMoviePlayerViewControllerAnimated:mp];
 }
 @end

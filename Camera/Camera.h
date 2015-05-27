@@ -13,8 +13,9 @@
 #import <CoreVideo/CoreVideo.h>
 #import <CoreMedia/CoreMedia.h>
 #import <ImageIO/ImageIO.h>
+#import <MediaPlayer/MediaPlayer.h>
 
-@interface Camera : NSObject <UIAlertViewDelegate> {
+@interface Camera : NSObject <UIAlertViewDelegate, AVCaptureFileOutputRecordingDelegate> {
     UIWindow *overlay;
     UIView *cameraHousing;
     UIView *background;
@@ -23,9 +24,14 @@
     CGPoint inputPoint;
     CGRect imgFrame;
     
+    AVCaptureSession *captureSession;
+    AVCaptureDevice *inputDevice;
+    AVCaptureDeviceInput *captureInput;
     AVCaptureVideoPreviewLayer *livePreviewLayer;
     AVCaptureStillImageOutput *stillImageOutput;
+    AVCaptureMovieFileOutput *MovieFileOutput;
     
+    UIVisualEffectView *imgHousing;
     UIImageView *imgView;
 }
 #define SCREEN ([[UIScreen mainScreen] bounds])
