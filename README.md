@@ -21,4 +21,3 @@ Once an image is taken you can get the image by calling (will return a UIImage):
 |----------|
 |Added toggle to flip camera from front to back|
 |better image display format after photo is taken|
-|------------------------------------------------|
