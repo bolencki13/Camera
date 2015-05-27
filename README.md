@@ -1,6 +1,6 @@
 #Call the camera from anywhere for iOS.
 
-######To impliment add the files Camera.h & Camera.m into your project and #import Camera.h
+######To impliment add the files Camera.h & Camera.m into your project and #import "Camera.h"
 
 To invoke the camera:
     
