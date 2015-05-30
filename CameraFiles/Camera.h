@@ -15,6 +15,14 @@
 #import <ImageIO/ImageIO.h>
 #import <MediaPlayer/MediaPlayer.h>
 
+@class Camera;
+@protocol CameraDelegate <NSObject>
+@optional
+- (void)cameraImageWasTaken:(UIImage*)image;
+- (void)cameraWasDismissed;
+- (void)cameraWasPresented;
+@end
+
 @interface Camera : NSObject <UIAlertViewDelegate, AVCaptureFileOutputRecordingDelegate> {
     UIWindow *overlay;
     UIView *cameraHousing;
@@ -33,12 +41,16 @@
     
     UIVisualEffectView *imgHousing;
     UIImageView *imgView;
+    
+    id <CameraDelegate> _delegate;
 }
 #define SCREEN ([[UIScreen mainScreen] bounds])
 #define CENTER (CGPointMake(SCREEN.size.width/2, SCREEN.size.height/2))
 #define ANIMATION_DURATION (0.5)
 
 @property BOOL onScreen;
+@property (nonatomic) id <CameraDelegate> delegate;
+- (void)setDelegate:(id<CameraDelegate>)delegate;
 + (Camera*)sharedInstance;
 - (void)presentCameraWithFrame:(CGRect)frame;
 - (void)dismissCamera;

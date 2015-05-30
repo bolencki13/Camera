@@ -15,9 +15,6 @@ Once an image is taken you can get the image by calling (will return a UIImage):
     [[Camera sharedInstance] getImageTaken];
 
 
+The delegate can be set to recieve the images once taken (must be set first):
 
-
-|Change Log|
-|----------|
-|Added toggle to flip camera from front to back|
-|better image display format after photo is taken|
+    [Camera sharedInstance].delegate = self;

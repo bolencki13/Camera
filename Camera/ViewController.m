@@ -7,7 +7,7 @@
 //
 
 #import "ViewController.h"
-#import "Camera.h"
+
 @interface ViewController ()
 
 @end
@@ -26,6 +26,7 @@
 
 }
 - (void)openCamera {
+    [Camera sharedInstance].delegate = self;
     [[Camera sharedInstance] presentCameraWithFrame:CGRectMake(0, 100, [UIScreen mainScreen].bounds.size.width,[UIScreen mainScreen].bounds.size.width)];
 }
 
@@ -34,4 +35,14 @@
     // Dispose of any resources that can be recreated.
 }
 
+#pragma mark - Camera Delegate
+- (void)cameraImageWasTaken:(UIImage*)image {
+    NSLog(@"Image was taken");
+}
+- (void)cameraWasDismissed {
+    NSLog(@"Camera was dismissed.");
+}
+- (void)cameraWasPresented {
+    NSLog(@"Camera was presented.");
+}
 @end

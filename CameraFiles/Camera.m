@@ -9,6 +9,7 @@
 #import "Camera.h"
 
 @implementation Camera
+@synthesize delegate = _delegate;
 + (Camera*)sharedInstance {
     static dispatch_once_t p = 0;
     __strong static id _sharedObject = nil;
@@ -120,6 +121,13 @@
 - (void)statusBarDidChangeFrame {
     /*Can change the frame here if you need different placement per orientation*/
 }
+- (void)setDelegate:(id<CameraDelegate>)aDelegate {
+    if (_delegate != aDelegate) {
+        _delegate = aDelegate;
+        
+        
+    }
+}
 
 #pragma mark - Presentation & Dismissal
 - (void)presentCameraWithFrame:(CGRect)frame {
@@ -133,6 +141,7 @@
     } completion:^(BOOL finished) {
         [livePreviewLayer setFrame:CGRectMake(0, 0, frame.size.width, frame.size.height)];
     }];
+    [_delegate cameraWasPresented];
 }
 - (void)dismissCamera {
     self.onScreen = NO;
@@ -142,6 +151,7 @@
     } completion:^(BOOL finished) {
         overlay.hidden = YES;
     }];
+    [_delegate cameraWasDismissed];
 }
 
 #pragma mark - Camera Handling
@@ -201,6 +211,7 @@
         
         UIImage *imgTaken = [[UIImage alloc] initWithData:imageData];
         [self showImage:imgTaken withFrame:imgFrame];
+        [_delegate cameraImageWasTaken:imgTaken];
     }];
 }
 - (void)recordVideo:(id)sender {
