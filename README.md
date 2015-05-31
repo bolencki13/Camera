@@ -3,6 +3,7 @@
 ######To impliment add the files Camera.h & Camera.m into your project and #import "Camera.h". For the delegate add <CameraDelegate> to your .h file
 
 Camera is an easy way to invoke a camera anywhere within your program to take photos or videos. There is a delegate for convenience. This can be used to get updates of all kinds:
+    
     - (void)cameraImageWasTaken:(UIImage*)image;
     - (void)cameraVideoWasTaken:(NSData*)video;
     - (void)cameraWasDismissed;
