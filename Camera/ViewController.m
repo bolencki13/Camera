@@ -30,19 +30,23 @@
     [[Camera sharedInstance] presentCameraWithFrame:CGRectMake(0, 100, [UIScreen mainScreen].bounds.size.width,[UIScreen mainScreen].bounds.size.width)];
 }
 
-- (void)didReceiveMemoryWarning {
-    [super didReceiveMemoryWarning];
-    // Dispose of any resources that can be recreated.
-}
-
 #pragma mark - Camera Delegate
 - (void)cameraImageWasTaken:(UIImage*)image {
     NSLog(@"Image was taken");
+}
+- (void)cameraVideoWasTaken:(NSData*)video {
+    NSLog(@"Video was taken");
 }
 - (void)cameraWasDismissed {
     NSLog(@"Camera was dismissed.");
 }
 - (void)cameraWasPresented {
     NSLog(@"Camera was presented.");
+}
+- (void)cameraViewWasFlipedToFrontCamera:(BOOL)isFront {
+    NSLog(@"Camera was flipped.");
+}
+- (void)cameraFlashDidTurnOn:(BOOL)flashOn {
+    NSLog(@"Flash state did change");
 }
 @end

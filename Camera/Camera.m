@@ -20,12 +20,13 @@
 }
 - (id)init {
     if (self = [super init]) {
-        self.onScreen = NO;
+        onScreen = NO;
         
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(statusBarDidChangeFrame)
                                                      name:UIApplicationDidChangeStatusBarFrameNotification
                                                    object:nil];
+        prefs = [NSUserDefaults standardUserDefaults];
         
         [self setUpViews];
     }
@@ -78,9 +79,11 @@
         }
         
         stillImageOutput = [[AVCaptureStillImageOutput alloc] init];
+        movieFileOutput = [[AVCaptureMovieFileOutput alloc] init];
         NSDictionary *outputSettings = [[NSDictionary alloc] initWithObjectsAndKeys: AVVideoCodecJPEG, AVVideoCodecKey, nil];
         [stillImageOutput setOutputSettings:outputSettings];
         [captureSession addOutput:stillImageOutput];
+        [captureSession addOutput:movieFileOutput];
         
         //handle prevLayer
         livePreviewLayer = [AVCaptureVideoPreviewLayer layerWithSession:captureSession];
@@ -92,7 +95,7 @@
         
         [captureSession startRunning];
         
-        UIButton *btnTakePhoto = [UIButton buttonWithType:UIButtonTypeCustom];
+        btnTakePhoto = [UIButton buttonWithType:UIButtonTypeRoundedRect];
         [btnTakePhoto addTarget:self action:@selector(takePhoto) forControlEvents:UIControlEventTouchUpInside];
         btnTakePhoto.showsTouchWhenHighlighted = YES;
         btnTakePhoto.frame = CGRectMake(cameraHousing.center.x, SCREEN.size.width-75, 65, 65);
@@ -107,19 +110,41 @@
         lpgRecord.minimumPressDuration = 1.0;
         [btnTakePhoto addGestureRecognizer:lpgRecord];
         
-        UIButton *btnToggleCamera = [UIButton buttonWithType:UIButtonTypeCustom];
+        UIButton *btnToggleCamera = [UIButton buttonWithType:UIButtonTypeRoundedRect];
         [btnToggleCamera addTarget:self action:@selector(toggleCamera) forControlEvents:UIControlEventTouchUpInside];
-        [btnToggleCamera setTitle:@"Flip" forState:UIControlStateNormal];
+        [btnToggleCamera setImage:[UIImage imageNamed:@"flip.png"] forState:UIControlStateNormal];
         [btnToggleCamera setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
-        btnToggleCamera.frame = CGRectMake(10,10,25,25);
-        [btnToggleCamera sizeToFit];
+        btnToggleCamera.frame = CGRectMake(10,10,30,30);
+        btnToggleCamera.showsTouchWhenHighlighted = YES;
         btnToggleCamera.backgroundColor = [UIColor clearColor];
         [cameraHousing addSubview:btnToggleCamera];
+        
+        if ([inputDevice hasFlash] == YES) {
+            btnFlash = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+            [btnFlash addTarget:self action:@selector(flash:) forControlEvents:UIControlEventTouchUpInside];
+            [inputDevice lockForConfiguration:nil];
+            if ([prefs boolForKey:@"flash"] == YES) {
+                [btnFlash setImage:[UIImage imageNamed:@"flashOn.png"] forState:UIControlStateNormal];
+                inputDevice.flashMode = AVCaptureFlashModeOn;
+            } else {
+                [btnFlash setImage:[UIImage imageNamed:@"flashOff.png"] forState:UIControlStateNormal];
+                inputDevice.flashMode = AVCaptureFlashModeOff;
+            }
+            [inputDevice unlockForConfiguration];
+            btnFlash.frame = CGRectMake(cameraHousing.frame.size.height-40, 10, 30, 30);
+            btnFlash.showsTouchWhenHighlighted = YES;
+            btnFlash.backgroundColor = [UIColor clearColor];
+            [cameraHousing addSubview:btnFlash];
+        }
+
+        lblTimer = [[UILabel alloc] initWithFrame:CGRectMake(10, cameraHousing.frame.size.height-40, 50, 30)];
+        lblTimer.text = @"0:00";
+        lblTimer.textColor = [UIColor colorWithRed:0.2 green:0.522 blue:1 alpha:1] /*#3385ff*/;
+        lblTimer.textAlignment = NSTextAlignmentRight;
+        [cameraHousing addSubview:lblTimer];
+        lblTimer.hidden = YES;
     });
     
-}
-- (void)statusBarDidChangeFrame {
-    /*Can change the frame here if you need different placement per orientation*/
 }
 - (void)setDelegate:(id<CameraDelegate>)aDelegate {
     if (_delegate != aDelegate) {
@@ -128,6 +153,9 @@
         
     }
 }
+- (void)statusBarDidChangeFrame {
+    /*Can change the frame here if you need different placement per orientation*/
+}
 
 #pragma mark - Presentation & Dismissal
 - (void)presentCameraWithFrame:(CGRect)frame {
@@ -135,7 +163,10 @@
     inputPoint = CGPointMake(frame.origin.x+frame.size.width/2, frame.origin.y+frame.size.height/2);
     imgFrame = frame;
     [cameraHousing setFrame:CGRectMake(inputPoint.x, inputPoint.y, 1, 1)];
-    self.onScreen = YES;
+    [btnTakePhoto setCenter:CGPointMake(cameraHousing.center.x, frame.size.height-(85/2))];
+    [btnFlash setFrame:CGRectMake(frame.size.height-40, 10, 30, 30)];
+    [lblTimer setFrame:CGRectMake(10, frame.size.height-40, 50, 30)];
+    onScreen = YES;
     [UIView animateWithDuration:ANIMATION_DURATION animations:^{
         [cameraHousing setFrame:frame];
     } completion:^(BOOL finished) {
@@ -144,7 +175,7 @@
     [_delegate cameraWasPresented];
 }
 - (void)dismissCamera {
-    self.onScreen = NO;
+    onScreen = NO;
     [UIView animateWithDuration:ANIMATION_DURATION animations:^{
         [imgHousing removeFromSuperview];
         [cameraHousing setFrame:CGRectMake(inputPoint.x, inputPoint.y, 1, 1)];
@@ -165,8 +196,10 @@
             
             if (position == AVCaptureDevicePositionFront) {
                 newCamera = [self cameraWithPosition:AVCaptureDevicePositionBack];
+                [_delegate cameraViewWasFlipedToFrontCamera:NO];
             } else {
                 newCamera = [self cameraWithPosition:AVCaptureDevicePositionFront];
+                [_delegate cameraViewWasFlipedToFrontCamera:YES];
             }
             newInput = [AVCaptureDeviceInput deviceInputWithDevice:newCamera error:nil];
             
@@ -183,7 +216,7 @@
     }
 
 }
-- ( AVCaptureDevice * ) cameraWithPosition : ( AVCaptureDevicePosition ) position {
+- (AVCaptureDevice *)cameraWithPosition:(AVCaptureDevicePosition)position {
     NSArray * Devices = [ AVCaptureDevice devicesWithMediaType : AVMediaTypeVideo ] ;
     for ( AVCaptureDevice * Device in Devices )
         if (Device.position == position )
@@ -224,23 +257,58 @@
         if ([fileManager fileExistsAtPath:outputPath]) {
             NSError *error;
             if ([fileManager removeItemAtPath:outputPath error:&error] == NO) {
-                //Error - handle if requried
+                [[[UIAlertView alloc] initWithTitle:@"Camera" message:@"An Error occured with Movie" delegate:nil cancelButtonTitle:@"Got it." otherButtonTitles:nil, nil] show];
             }
         }
+        stepper = 1;
+        minutes = 0;
+        seconds = 0;
+        timer = [NSTimer scheduledTimerWithTimeInterval:1.0 target:self selector:@selector(updateTimerLabel:) userInfo:nil repeats:YES];
+        lblTimer.hidden = NO;
         //Start recording
-        [MovieFileOutput startRecordingToOutputFileURL:outputURL recordingDelegate:self];
+        [movieFileOutput startRecordingToOutputFileURL:outputURL recordingDelegate:self];
     } else if (recognizer.state == UIGestureRecognizerStateEnded) {
-        [MovieFileOutput stopRecording];
+        [movieFileOutput stopRecording];
+        [timer invalidate];
+        timer = nil;
+    }
+}
+- (void)updateTimerLabel:(NSTimer*)timer {
+    NSString *text;
+    
+    if (stepper == 60) {
+        minutes++;
+        seconds = 0;
+        stepper = 0;
+    } else {
+        seconds = stepper;
     }
     
-    
-    if (recognizer.state == UIGestureRecognizerStateBegan) {
-        NSLog(@"Recording started.");
-    } else if (recognizer.state == UIGestureRecognizerStateChanged) {
-        NSLog(@"Recording.");
-    } else if (recognizer.state == UIGestureRecognizerStateEnded) {
-        NSLog(@"Recording ended.");
+    if (stepper < 10) {
+        text = [NSString stringWithFormat:@"%i:0%i", minutes,seconds];
+    } else {
+        text = [NSString stringWithFormat:@"%i:%i", minutes,seconds];
     }
+    
+    lblTimer.text = text;
+    //[lblTimer sizeToFit];
+
+    stepper++;
+}
+- (void)flash:(id)sender {
+    [inputDevice lockForConfiguration:nil];
+    if (inputDevice.flashMode == AVCaptureFlashModeOff) {
+        inputDevice.flashMode = AVCaptureFlashModeOn;
+        [sender setImage:[UIImage imageNamed:@"flashOn.png"] forState:UIControlStateNormal];
+        [prefs setBool:YES forKey:@"flash"];
+    } else {
+        inputDevice.flashMode = AVCaptureFlashModeOff;
+        [sender setImage:[UIImage imageNamed:@"flashOff.png"] forState:UIControlStateNormal];
+        [prefs setBool:NO forKey:@"flash"];
+    }
+    [prefs synchronize];
+    [_delegate cameraFlashDidTurnOn:[prefs boolForKey:@"flash"]];
+    [inputDevice unlockForConfiguration];
 }
 
 #pragma mark - Image & Video Handling
@@ -257,12 +325,10 @@
     imgView.userInteractionEnabled = YES;
     [imgHousing addSubview:imgView];
     
-    btnClose = [UIButton buttonWithType:UIButtonTypeCustom];
+    btnClose = [UIButton buttonWithType:UIButtonTypeRoundedRect];
     [btnClose addTarget:self action:@selector(retakePhoto) forControlEvents:UIControlEventTouchUpInside];
-    [btnClose setTitle:@"X" forState:UIControlStateNormal];
-    [btnClose setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
-    btnClose.frame = CGRectMake(imgView.bounds.size.width-40, 10, 35, 35);
-    [btnClose sizeToFit];
+    [btnClose setImage:[UIImage imageNamed:@"close.png"] forState:UIControlStateNormal];
+    btnClose.frame = CGRectMake(imgView.bounds.size.width-40, 10, 30, 30);
     [imgView addSubview:btnClose];
 }
 - (void)retakePhoto {
@@ -279,15 +345,20 @@
 
 #pragma mark - Movie Delegate
 - (void)captureOutput:(AVCaptureFileOutput *)captureOutput didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL fromConnections:(NSArray *)connections error:(NSError *)error {
+    [_delegate cameraVideoWasTaken:[[NSFileManager defaultManager] contentsAtPath:[outputFileURL path]]];
     
     MPMoviePlayerViewController *mp = [[MPMoviePlayerViewController alloc] initWithContentURL:outputFileURL];
     
     mp.moviePlayer.scalingMode = MPMovieScalingModeAspectFill;
     
-    UIViewController *vc = [[UIViewController alloc] init];
-    vc.view.backgroundColor = [UIColor clearColor];
-    [overlay setRootViewController:vc];
-    
-    [vc presentMoviePlayerViewControllerAnimated:mp];
+    [overlay setRootViewController:mp];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(movieDidFinish) name:MPMoviePlayerPlaybackDidFinishNotification object:nil];
+
+}
+- (void)movieDidFinish {
+    NSLog(@"VideoFinished");
+    lblTimer.text = @"0:00";
+    lblTimer.hidden = YES;
+    [overlay setRootViewController:nil];
 }
 @end
