@@ -12,6 +12,7 @@ Camera is an easy way to invoke a camera anywhere within your program to take ph
     - (void)cameraFlashDidTurnOn:(BOOL)flashOn;
 
 In order to invoke Camera first assign the delegate if needed and then call as follows (the frame will be the area that the camera actually takes up. A different frame will most likely be needed depending on orientation of the device):
+    
     [Camera sharedInstance].delegate = self;
     [[Camera sharedInstance] presentCameraWithFrame:(CGRect)];
 
